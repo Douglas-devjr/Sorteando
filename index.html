@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sorteando — Temas da Semana</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="page-header">
+    <h1>🎓 Sorteando</h1>
+    <p>Toda semana, cada um sorteia um tema do próprio curso para estudar e ensinar ao outro.</p>
+  </header>
+
+  <main>
+    <section class="people-grid" id="people-grid">
+      <!-- Cards das pessoas gerados via JS -->
+    </section>
+
+    <button class="btn btn-both" id="draw-both-btn">🎲 Sortear os dois temas da semana</button>
+
+    <section class="history-section">
+      <h2>📜 Histórico</h2>
+      <div class="history-grid" id="history-grid">
+        <!-- Histórico por curso gerado via JS -->
+      </div>
+    </section>
+  </main>
+
+  <footer class="page-footer">
+    <p>Os dados ficam salvos apenas neste navegador (localStorage).</p>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
