@@ -1,37 +1,68 @@
-const STORAGE_KEYS = {
-  people: "sorteando_people",
-  history: "sorteando_history",
-};
+let people = [];
+let history = [];
+let supabase = null;
 
-let people = loadPeople();
-let history = loadHistory();
-
-function loadPeople() {
-  const raw = localStorage.getItem(STORAGE_KEYS.people);
-  if (!raw) return structuredClone(DEFAULT_PEOPLE);
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length) return parsed;
-  } catch (e) {}
-  return structuredClone(DEFAULT_PEOPLE);
+function isConfigured() {
+  return (
+    typeof SUPABASE_URL === "string" &&
+    typeof SUPABASE_ANON_KEY === "string" &&
+    !SUPABASE_URL.includes("YOUR-PROJECT") &&
+    !SUPABASE_ANON_KEY.includes("YOUR-ANON-PUBLIC-KEY")
+  );
 }
 
-function loadHistory() {
-  const raw = localStorage.getItem(STORAGE_KEYS.history);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
-  } catch (e) {}
-  return [];
+function showSetupBanner() {
+  document.getElementById("setup-banner").hidden = false;
 }
 
-function savePeople() {
-  localStorage.setItem(STORAGE_KEYS.people, JSON.stringify(people));
+function rowToPerson(r) {
+  return { id: r.id, name: r.name, courseId: r.course_id };
 }
 
-function saveHistory() {
-  localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(history));
+function rowToHistoryEntry(r) {
+  return {
+    id: r.id,
+    personId: r.person_id,
+    courseId: r.course_id,
+    theme: r.theme,
+    date: r.date,
+    done: r.done,
+  };
+}
+
+async function fetchPeople() {
+  const { data, error } = await supabase.from("people").select("*").order("id");
+  if (error) {
+    console.error(error);
+    return [];
+  }
+  if (!data || data.length === 0) {
+    const seed = DEFAULT_PEOPLE.map((p) => ({
+      id: p.id,
+      name: p.name,
+      course_id: p.courseId,
+    }));
+    await supabase.from("people").upsert(seed);
+    return DEFAULT_PEOPLE.map((p) => ({ ...p }));
+  }
+  return data.map(rowToPerson);
+}
+
+async function fetchHistory() {
+  const { data, error } = await supabase
+    .from("history")
+    .select("*")
+    .order("date", { ascending: true });
+  if (error) {
+    console.error(error);
+    return [];
+  }
+  return data.map(rowToHistoryEntry);
+}
+
+async function refreshAll() {
+  [people, history] = await Promise.all([fetchPeople(), fetchHistory()]);
+  render();
 }
 
 function getLastDrawFor(personId) {
@@ -41,7 +72,7 @@ function getLastDrawFor(personId) {
   return null;
 }
 
-function drawThemeFor(personId) {
+async function drawThemeFor(personId) {
   const person = people.find((p) => p.id === personId);
   if (!person) return;
 
@@ -59,15 +90,18 @@ function drawThemeFor(personId) {
 
   const theme = available[Math.floor(Math.random() * available.length)];
 
-  history.push({
-    id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    personId,
-    courseId: person.courseId,
+  const { error } = await supabase.from("history").insert({
+    person_id: personId,
+    course_id: person.courseId,
     theme,
-    date: new Date().toISOString(),
     done: false,
   });
-  saveHistory();
+
+  if (error) {
+    console.error(error);
+    alert("Não foi possível salvar o sorteio. Verifique sua conexão/configuração do Supabase.");
+    return;
+  }
 
   if (cycleRestarted) {
     window.setTimeout(() => {
@@ -77,33 +111,49 @@ function drawThemeFor(personId) {
     }, 50);
   }
 
-  render();
+  await refreshAll();
 }
 
-function toggleDone(historyId) {
+async function toggleDone(historyId) {
   const entry = history.find((h) => h.id === historyId);
   if (!entry) return;
-  entry.done = !entry.done;
-  saveHistory();
-  render();
+  const { error } = await supabase
+    .from("history")
+    .update({ done: !entry.done })
+    .eq("id", historyId);
+  if (error) {
+    console.error(error);
+    return;
+  }
+  await refreshAll();
 }
 
-function clearHistoryForCourse(courseId) {
+async function clearHistoryForCourse(courseId) {
   const course = COURSES[courseId];
   const ok = confirm(
     `Tem certeza que deseja apagar todo o histórico de ${course.name}? Isso não pode ser desfeito.`
   );
   if (!ok) return;
-  history = history.filter((h) => h.courseId !== courseId);
-  saveHistory();
-  render();
+  const { error } = await supabase.from("history").delete().eq("course_id", courseId);
+  if (error) {
+    console.error(error);
+    return;
+  }
+  await refreshAll();
 }
 
-function updatePersonName(personId, newName) {
-  const person = people.find((p) => p.id === personId);
-  if (!person) return;
-  person.name = newName.trim() || person.name;
-  savePeople();
+async function updatePersonName(personId, newName) {
+  const trimmed = newName.trim();
+  if (!trimmed) return;
+  const { error } = await supabase
+    .from("people")
+    .update({ name: trimmed })
+    .eq("id", personId);
+  if (error) {
+    console.error(error);
+    return;
+  }
+  await refreshAll();
 }
 
 function formatDate(iso) {
@@ -252,4 +302,21 @@ document.getElementById("draw-both-btn").addEventListener("click", () => {
   people.forEach((p) => drawThemeFor(p.id));
 });
 
-render();
+async function init() {
+  if (!isConfigured()) {
+    showSetupBanner();
+    return;
+  }
+
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  await refreshAll();
+
+  supabase
+    .channel("sorteando-sync")
+    .on("postgres_changes", { event: "*", schema: "public", table: "history" }, refreshAll)
+    .on("postgres_changes", { event: "*", schema: "public", table: "people" }, refreshAll)
+    .subscribe();
+}
+
+init();

@@ -256,6 +256,26 @@ main {
   padding: 12px 0;
 }
 
+.setup-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fef3c7;
+  color: #92400e;
+  text-align: center;
+  padding: 10px 16px;
+  font-size: 0.85rem;
+  border-top: 1px solid #fcd34d;
+  z-index: 10;
+}
+
+.setup-banner code {
+  background: rgba(0, 0, 0, 0.08);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
 .page-footer {
   text-align: center;
   color: var(--text-muted);

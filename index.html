@@ -32,6 +32,13 @@
     <p>Os dados ficam salvos apenas neste navegador (localStorage).</p>
   </footer>
 
+  <div class="setup-banner" id="setup-banner" hidden>
+    ⚠️ Supabase ainda não configurado. Edite <code>config.js</code> com a URL
+    e a chave do seu projeto (veja <code>supabase-setup.sql</code> para criar as tabelas).
+  </div>
+
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="data.js"></script>
   <script src="script.js"></script>
 </body>
