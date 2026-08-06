@@ -1,6 +1,6 @@
 let people = [];
 let history = [];
-let supabase = null;
+let supabaseClient = null;
 
 function isConfigured() {
   return (
@@ -31,7 +31,7 @@ function rowToHistoryEntry(r) {
 }
 
 async function fetchPeople() {
-  const { data, error } = await supabase.from("people").select("*").order("id");
+  const { data, error } = await supabaseClient.from("people").select("*").order("id");
   if (error) {
     console.error(error);
     return [];
@@ -42,14 +42,14 @@ async function fetchPeople() {
       name: p.name,
       course_id: p.courseId,
     }));
-    await supabase.from("people").upsert(seed);
+    await supabaseClient.from("people").upsert(seed);
     return DEFAULT_PEOPLE.map((p) => ({ ...p }));
   }
   return data.map(rowToPerson);
 }
 
 async function fetchHistory() {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from("history")
     .select("*")
     .order("date", { ascending: true });
@@ -90,7 +90,7 @@ async function drawThemeFor(personId) {
 
   const theme = available[Math.floor(Math.random() * available.length)];
 
-  const { error } = await supabase.from("history").insert({
+  const { error } = await supabaseClient.from("history").insert({
     person_id: personId,
     course_id: person.courseId,
     theme,
@@ -117,7 +117,7 @@ async function drawThemeFor(personId) {
 async function toggleDone(historyId) {
   const entry = history.find((h) => h.id === historyId);
   if (!entry) return;
-  const { error } = await supabase
+  const { error } = await supabaseClient
     .from("history")
     .update({ done: !entry.done })
     .eq("id", historyId);
@@ -134,7 +134,7 @@ async function clearHistoryForCourse(courseId) {
     `Tem certeza que deseja apagar todo o histórico de ${course.name}? Isso não pode ser desfeito.`
   );
   if (!ok) return;
-  const { error } = await supabase.from("history").delete().eq("course_id", courseId);
+  const { error } = await supabaseClient.from("history").delete().eq("course_id", courseId);
   if (error) {
     console.error(error);
     return;
@@ -145,7 +145,7 @@ async function clearHistoryForCourse(courseId) {
 async function updatePersonName(personId, newName) {
   const trimmed = newName.trim();
   if (!trimmed) return;
-  const { error } = await supabase
+  const { error } = await supabaseClient
     .from("people")
     .update({ name: trimmed })
     .eq("id", personId);
@@ -308,11 +308,11 @@ async function init() {
     return;
   }
 
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   await refreshAll();
 
-  supabase
+  supabaseClient
     .channel("sorteando-sync")
     .on("postgres_changes", { event: "*", schema: "public", table: "history" }, refreshAll)
     .on("postgres_changes", { event: "*", schema: "public", table: "people" }, refreshAll)
